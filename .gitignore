@@ -18,6 +18,11 @@ __pycache__/
 venv/
 env/
 
+#Node Modules
+node_modules/
+json-lock.json
+package-lock.json
+
 # Packaging
 build/
 dist/
