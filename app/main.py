@@ -4,6 +4,9 @@ from qdrant_client import QdrantClient
 import psycopg2
 from psycopg2 import pool
 
+
+from app.routes.chat import router as chat_router 
+
 app = FastAPI()
 
 # ---- Config (env-driven) ----
@@ -68,3 +71,5 @@ def health():
         "postgres": "ok",
         "collections": collections.dict(),
     }
+
+app.include_router(chat_router, prefix="/chat", tags=["Chat"])
