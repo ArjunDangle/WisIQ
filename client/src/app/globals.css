@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #000000;
+  
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  
+  --primary: #000000;
+  --primary-foreground: #ffffff;
+  
+  --accent: #f4f4f5;
+  --accent-foreground: #000000;
+
+  /* Sophisticated Accents */
+  --accent-amber: #d97706;
+  --accent-amber-bg: #fef3c7;
+  --accent-teal: #0d9488;
+  --accent-teal-bg: #ccfbf1;
+  --accent-blue: #2563eb;
+  --accent-blue-bg: #dbeafe;
+  
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: #000000;
+  --foreground: #ffffff;
+  
+  --muted: #18181b;
+  --muted-foreground: #a1a1aa;
+  
+  --border: #27272a;
+  --input: #27272a;
+  
+  --primary: #ffffff;
+  --primary-foreground: #000000;
+  
+  --accent: #18181b;
+  --accent-foreground: #ffffff;
+
+  --accent-amber: #fbbf24;
+  --accent-amber-bg: #451a03;
+  --accent-teal: #2dd4bf;
+  --accent-teal-bg: #042f2e;
+  --accent-blue: #60a5fa;
+  --accent-blue-bg: #172554;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-amber-bg: var(--accent-amber-bg);
+  --color-accent-teal: var(--accent-teal);
+  --color-accent-teal-bg: var(--accent-teal-bg);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-blue-bg: var(--accent-blue-bg);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Glassmorphism utilities */
+@layer utilities {
+  .glass {
+    @apply bg-white/70 dark:bg-black/70 backdrop-blur-md border border-white/20 dark:border-white/10;
+  }
+}

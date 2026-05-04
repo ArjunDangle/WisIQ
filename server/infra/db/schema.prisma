@@ -1,0 +1,35 @@
+// FILE: infra/db/schema.prisma
+
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "asyncio" // Essential for FastAPI integration
+  recursive_type_depth = 5
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ProductFamily {
+  id            String        @id @default(uuid())
+  name          String        @unique // e.g., "wisgate", "wisduo"
+  
+  product_codes ProductCode[]
+
+  @@map("product_families")
+}
+
+model ProductCode {
+  id                String        @id @default(uuid())
+  code              String        @unique // e.g., "rak7289v2", "rak7240"
+  
+  // The Guardrail Flag for EOL Logic
+  is_eol            Boolean       @default(false)
+  
+  // Relational linking
+  product_family_id String
+  family            ProductFamily @relation(fields: [product_family_id], references:[id], onDelete: Cascade)
+
+  @@map("product_codes")
+}
