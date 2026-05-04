@@ -1,11 +1,17 @@
 # FILE: services/memory/context_builder/query_rewriter.py
 
 import os
-from openai import AsyncOpenAI
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage
 from services.orchestration.state.state import AgentState
 
-api_key = os.getenv("OPENROUTER_API_KEY")
-client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+# 🚨 FIX B: Adopt LangChain ChatOpenAI wrapper
+llm = ChatOpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY", "your-openrouter-key"),
+    model="meta-llama/llama-3.1-8b-instruct",
+    temperature=0.0
+)
 
 async def rewrite_query_node(state: AgentState) -> dict:
     """
@@ -36,14 +42,13 @@ async def rewrite_query_node(state: AgentState) -> dict:
     {history_text}
     """
 
-    response = await client.chat.completions.create(
-        model="meta-llama/llama-3.1-8b-instruct",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": latest_query}
-        ],
-        temperature=0.0
-    )
+    # Package as LangChain messages
+    langchain_messages =[
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=latest_query)
+    ]
 
-    rewritten_query = response.choices[0].message.content.strip()
+    response = await llm.ainvoke(langchain_messages)
+    rewritten_query = response.content.strip()
+    
     return {"standalone_query": rewritten_query}

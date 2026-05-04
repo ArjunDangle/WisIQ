@@ -1,7 +1,7 @@
 # FILE: services/query_understanding/extractors/intent_extractor.py
 
 import os
-from openai import AsyncOpenAI
+from langchain_openai import ChatOpenAI
 from services.query_understanding.schemas.intent import QueryUnderstanding
 
 # --- HARDENED API KEY VALIDATION ---
@@ -12,9 +12,19 @@ if "your-openrouter-key" in api_key:
     raise ValueError("FATAL: The default OPENROUTER_API_KEY is being used. Please replace it with your actual key.")
 # --- END VALIDATION ---
 
-client = AsyncOpenAI(
+# 🚨 FIX B: Adopt LangChain ChatOpenAI wrapper with structured output capabilities
+llm = ChatOpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key=api_key
+    api_key=api_key,
+    model="meta-llama/llama-3.1-8b-instruct",
+    temperature=0.0
+)
+
+# Force the LLM to output our exact Pydantic schema
+structured_llm = llm.with_structured_output(
+    QueryUnderstanding, 
+    method="json_schema", 
+    strict=True
 )
 
 async def analyze_query(query: str) -> QueryUnderstanding:
@@ -35,22 +45,10 @@ async def analyze_query(query: str) -> QueryUnderstanding:
     Normalize all extracted hardware names to lowercase without spaces or hyphens.
     """
     
-    response = await client.chat.completions.create(
-        model="meta-llama/llama-3.1-8b-instruct",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": query}
-        ],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "query_understanding",
-                "schema": QueryUnderstanding.model_json_schema(),
-                "strict": True
-            }
-        },
-        temperature=0.0
-    )
+    messages =[
+        ("system", system_prompt),
+        ("human", query)
+    ]
     
-    result_str = response.choices[0].message.content
-    return QueryUnderstanding.model_validate_json(result_str)
+    result = await structured_llm.ainvoke(messages)
+    return result

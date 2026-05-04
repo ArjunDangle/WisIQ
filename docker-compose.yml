@@ -30,7 +30,20 @@ services:
     volumes:
       - redis_data:/data
 
+  # 🚨 NEW: Neo4j Graph Database
+  neo4j:
+    image: neo4j:5.15.0
+    restart: unless-stopped
+    ports:
+      - "7474:7474" # HTTP Browser UI
+      - "7687:7687" # Bolt Protocol (Driver)
+    environment:
+      NEO4J_AUTH: neo4j/adminpassword # Set your password here
+    volumes:
+      - neo4j_data:/data
+
 volumes:
   qdrant_data:
   postgres_data:
   redis_data:
+  neo4j_data:

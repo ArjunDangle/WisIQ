@@ -43,6 +43,7 @@ inscriptis==2.7.1
 ir_datasets==0.5.11
 Jinja2==3.1.6
 joblib==1.5.3
+langchain-openai>=0.1.0
 llama-index-core==0.14.21
 llama-index-instrumentation==0.5.0
 llama-index-workflows==2.20.0
@@ -74,6 +75,7 @@ pydantic==2.13.3
 pydantic_core==2.46.3
 Pygments==2.20.0
 python-dateutil==2.9.0.post0
+python-dotenv>=1.0.0
 python-frontmatter==1.1.0
 PyYAML==6.0.3
 qdrant-client==1.17.1
@@ -114,3 +116,4 @@ wrapt==2.1.2
 xxhash==3.7.0
 yarl==1.23.0
 zlib-state==0.1.12
+neo4j==5.17.0

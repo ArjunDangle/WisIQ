@@ -1,36 +1,35 @@
 # FILE: services/orchestration/nodes/graph_traversal.py
 
-from prisma import Prisma
 from typing import Dict, Any
 from services.orchestration.state.state import AgentState
+from app.dependencies.db import prisma_client
+from services.retrieval.graph.neo4j_client import get_graph_facts
 
 async def extract_graph_neighborhood(state: AgentState) -> Dict[str, Any]:
     """
-    LangGraph Node: Takes extracted hardware, queries Postgres (our Knowledge Graph),
-    and builds a 'Graph Neighborhood' representing the strict reality of the hardware.
+    LangGraph Node: 
+    1. Validates SKU/EOL Taxonomy against PostgreSQL.
+    2. Extracts mapped knowledge facts from Neo4j (True GraphRAG).
     """
     hardware_list = state.get("extracted_hardware",[])
     
     neighborhood = {}
     is_eol_flagged = False
     
-    # If the LLM didn't detect any hardware, return empty graph context
+    # If no hardware detected, return empty context
     if not hardware_list:
         return {
             "graph_neighborhood": neighborhood,
+            "graph_facts":[],
             "is_eol_flagged": is_eol_flagged
         }
 
-    # Initialize Prisma (Connecting if not already connected by FastAPI)
-    db = Prisma()
-    if not db.is_connected():
-        await db.connect()
-
+    # --- 1. POSTGRES: Strict Taxonomy & EOL Guardrails ---
     for hw_code in hardware_list:
-        # Traverse the Graph: ProductCode -> ProductFamily
-        record = await db.productcode.find_unique(
+        # Utilize the global Prisma client
+        record = await prisma_client.productcode.find_unique(
             where={"code": hw_code},
-            include={"family": True} # Follow the edge to the parent node
+            include={"family": True} 
         )
         
         if record:
@@ -39,19 +38,22 @@ async def extract_graph_neighborhood(state: AgentState) -> Dict[str, Any]:
                 "family": record.family.name if record.family else "unknown",
                 "is_eol": record.is_eol
             }
-            # If ANY hardware in the query is EOL, trip the circuit breaker
             if record.is_eol:
                 is_eol_flagged = True
         else:
-            # The LLM hallucinated a product name, or the user mistyped it
             neighborhood[hw_code] = {
                 "status": "unrecognized",
                 "family": "none",
                 "is_eol": False
             }
 
+    # --- 2. NEO4J: GraphRAG Knowledge Traversals ---
+    # Fetch factual triplets based on the valid hardware recognized
+    valid_hardware = [hw for hw, info in neighborhood.items() if info["status"] == "recognized"]
+    graph_facts = await get_graph_facts(valid_hardware)
+
     return {
-        # This dictionary is merged back into our global LangGraph AgentState
         "graph_neighborhood": neighborhood,
+        "graph_facts": graph_facts, # Inject Neo4j facts into State
         "is_eol_flagged": is_eol_flagged
     }

@@ -1,11 +1,17 @@
+# FILE: app/main.py
+
 import os
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from qdrant_client import QdrantClient
 import psycopg2
 from psycopg2 import pool
 
+# 🚨 FIX: Load environment variables from .env file at the very beginning
+load_dotenv()
 
 from app.routes.chat import router as chat_router 
+from app.dependencies.db import prisma_client
 
 app = FastAPI()
 
@@ -24,9 +30,8 @@ qdrant = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
 
 pg_pool: pool.SimpleConnectionPool | None = None
 
-
 @app.on_event("startup")
-def startup():
+async def startup():
     global pg_pool
     pg_pool = psycopg2.pool.SimpleConnectionPool(
         minconn=1,
@@ -38,13 +43,19 @@ def startup():
         password=PG_PASSWORD,
         connect_timeout=3,
     )
-
+    
+    # Connect Prisma globally on application startup
+    if not prisma_client.is_connected():
+        await prisma_client.connect()
 
 @app.on_event("shutdown")
-def shutdown():
+async def shutdown():
     if pg_pool:
         pg_pool.closeall()
-
+        
+    # Disconnect Prisma gracefully on shutdown
+    if prisma_client.is_connected():
+        await prisma_client.disconnect()
 
 @app.get("/health")
 def health():
@@ -69,6 +80,7 @@ def health():
     return {
         "qdrant": "ok",
         "postgres": "ok",
+        "prisma": "connected" if prisma_client.is_connected() else "disconnected",
         "collections": collections.dict(),
     }
 

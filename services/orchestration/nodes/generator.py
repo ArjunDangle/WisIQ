@@ -1,42 +1,38 @@
 # FILE: services/orchestration/nodes/generator.py
 
 import os
-from openai import AsyncOpenAI
-from langchain_core.messages import AIMessage
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage
 from services.orchestration.state.state import AgentState
 
-client = AsyncOpenAI(
+# LangChain ChatOpenAI Wrapper
+llm = ChatOpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENROUTER_API_KEY", "your-openrouter-key")
+    api_key=os.getenv("OPENROUTER_API_KEY", "your-openrouter-key"),
+    model="meta-llama/llama-3.1-70b-instruct",
+    temperature=0.1
 )
 
 async def generate_response(state: AgentState) -> dict:
     """
-    LangGraph Node: Synthesizes the retrieved context and graph neighborhood into the final answer.
-    Enforces Zero-Hallucination and EOL guardrails.
+    LangGraph Node: Synthesizes Retrieved Context (Qdrant), Guardrails (Postgres), 
+    and Topologies (Neo4j) into the final answer.
     """
-    user_message = state["messages"][-1].content
     retrieved_chunks = state.get("retrieved_chunks",[])
     neighborhood = state.get("graph_neighborhood", {})
+    graph_facts = state.get("graph_facts",[]) # 🚨 Retrieve Neo4j facts
     is_eol_flagged = state.get("is_eol_flagged", False)
 
-    # 1. Build the Ground-Truth Context String
+    # 1. Build Ground-Truth Context String (Qdrant)
     context_str = ""
     for chunk in retrieved_chunks:
-        # We inject the exact header path so the LLM knows the hierarchical context
-        context_str += f"--- [{', '.join(chunk['product_codes'])}] {chunk['header_path']} ---\n"
-        context_str += f"{chunk['content']}\n\n"
+        context_str += f"---[{', '.join(chunk['product_codes'])}] {chunk['header_path']} ---\n{chunk['content']}\n\n"
 
-    # 2. Build the Guardrail Directives based on Postgres Graph Traversal
-    unrecognized_hardware = []
-    recognized_hardware =[]
-    
-    for hw, info in neighborhood.items():
-        if info["status"] == "unrecognized":
-            unrecognized_hardware.append(hw)
-        elif info["status"] == "recognized":
-            recognized_hardware.append(hw)
+    # 2. Build Graph Fact String (Neo4j)
+    graph_fact_str = "\n".join(graph_facts) if graph_facts else "No direct hardware relationships mapped."
 
+    # 3. Build Guardrail Directives (Postgres)
+    unrecognized_hardware =[hw for hw, info in neighborhood.items() if info["status"] == "unrecognized"]
     guardrail_instructions = ""
     
     if unrecognized_hardware:
@@ -45,33 +41,31 @@ async def generate_response(state: AgentState) -> dict:
     if is_eol_flagged:
         guardrail_instructions += "\n🚨 CRITICAL: One or more of the requested products are End-of-Life (EOL). You MUST begin your response with a clear warning that the product is End-of-Life and no longer actively supported.\n"
 
-    # 3. Construct the System Prompt
+    # 4. Construct System Prompt
     system_prompt = f"""
 You are an elite, highly precise technical support AI for IoT hardware (WisGate, WisDuo, etc.).
 Your primary mandate is ZERO HALLUCINATION. 
-You will answer the user's question using ONLY the provided 'Retrieved Context' below. 
+You will answer the user's question using ONLY the provided Graph Facts and Retrieved Context below. 
 If the context does not contain the answer, you must decline to answer and state that the documentation does not cover this.
 Do not invent AT commands or firmware versions. Do not guess.
 
 {guardrail_instructions}
 
-=== RETRIEVED CONTEXT ===
+=== GRAPH KNOWLEDGE FACTS (Entity Relationships) ===
+{graph_fact_str}
+==================================================
+
+=== RETRIEVED CONTEXT (Documentation Chunks) ===
 {context_str if context_str else "No relevant context found in the database."}
-=========================
+================================================
 """
 
-    # 4. Generate the Response using a powerful reasoning model (e.g., Llama 3 70B or GPT-4o)
-    response = await client.chat.completions.create(
-        model="meta-llama/llama-3.1-70b-instruct", 
-        messages=[
-            {"role": "system", "content": system_prompt},
-            # Pass the recent conversational history for context
-            *[{"role": "user" if m.type == "human" else "assistant", "content": m.content} for m in state["messages"][-3:]]
-        ],
-        temperature=0.1 # Keep it highly deterministic
-    )
+    # 5. Construct Message Payload
+    messages = [SystemMessage(content=system_prompt)]
+    recent_history = state["messages"][-3:]
+    messages.extend(recent_history)
+
+    # 6. Generate Response
+    response = await llm.ainvoke(messages)
     
-    final_answer = response.choices[0].message.content
-    
-    # 5. Return the new message to append to the LangGraph state
-    return {"messages":[AIMessage(content=final_answer)]}
+    return {"messages": [response]}
